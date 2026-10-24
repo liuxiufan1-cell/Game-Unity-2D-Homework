@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Reflection;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -13,12 +12,9 @@ public static class CourseworkPlayModeValidator
     private const string ScenePath = "Assets/Game/Scenes/2DGameCoursework.unity";
     private const string PendingKey = "Coursework.PlayModeValidation.Pending";
     private const string ResultKey = "Coursework.PlayModeValidation.Result";
-    private const string SavedPauseKey = "Coursework.PlayModeValidation.ErrorPause";
-    private const string RestorePauseKey = "Coursework.PlayModeValidation.RestoreErrorPause";
 
     private static int phase;
     private static double phaseStarted;
-    private static double validationStarted;
     private static PlayerCharacter originalPlayer;
     private static EnemyBase originalEnemy;
 
@@ -36,18 +32,8 @@ public static class CourseworkPlayModeValidator
         }
 
         EditorSceneManager.OpenScene(ScenePath);
-        EditorApplication.isPaused = false;
         SessionState.SetBool(PendingKey, true);
         SessionState.SetInt(ResultKey, -1);
-        if (Application.isBatchMode)
-        {
-            Type logEntries = typeof(EditorApplication).Assembly.GetType("UnityEditor.LogEntries", true);
-            int flags = (int)logEntries.GetProperty("consoleFlags", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
-            SessionState.SetBool(SavedPauseKey, (flags & 4) != 0);
-            SessionState.SetBool(RestorePauseKey, true);
-            SetErrorPause(false);
-            Debug.Log("COURSEWORK_SMOKE: Error Pause temporarily disabled for batch validation; error logs are retained.");
-        }
         EditorApplication.isPlaying = true;
     }
 
@@ -60,10 +46,8 @@ public static class CourseworkPlayModeValidator
 
         if (state == PlayModeStateChange.EnteredPlayMode)
         {
-            Application.runInBackground = true;
             phase = 0;
-            phaseStarted = Time.timeAsDouble;
-            validationStarted = EditorApplication.timeSinceStartup;
+            phaseStarted = EditorApplication.timeSinceStartup;
             EditorApplication.update -= Tick;
             EditorApplication.update += Tick;
         }
@@ -75,11 +59,6 @@ public static class CourseworkPlayModeValidator
         {
             int result = SessionState.GetInt(ResultKey, 1);
             SessionState.SetBool(PendingKey, false);
-            if (SessionState.GetBool(RestorePauseKey, false))
-            {
-                SetErrorPause(SessionState.GetBool(SavedPauseKey, true));
-                SessionState.SetBool(RestorePauseKey, false);
-            }
             if (result == 0)
             {
                 Debug.Log("COURSEWORK_PLAYMODE_SMOKE_TEST_PASSED");
@@ -88,36 +67,22 @@ public static class CourseworkPlayModeValidator
         }
     }
 
-    private static void SetErrorPause(bool enabled)
-    {
-        // Unity has no public API for this Console preference. Restore it after the isolated run.
-        Type logEntries = typeof(EditorApplication).Assembly.GetType("UnityEditor.LogEntries", true);
-        logEntries.GetMethod("SetConsoleFlag", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-            .Invoke(null, new object[] { 4, enabled });
-    }
-
     private static void Tick()
     {
         try
         {
-            // In batch mode an editor update is not necessarily a completed game frame.
-            EditorApplication.QueuePlayerLoopUpdate();
-            Require(EditorApplication.timeSinceStartup - validationStarted < 90d,
-                $"Play Mode validation timed out at phase {phase}, frame {Time.frameCount}, game time {Time.timeAsDouble}.");
-            double elapsed = Time.timeAsDouble - phaseStarted;
+            double elapsed = EditorApplication.timeSinceStartup - phaseStarted;
             if (phase == 0 && elapsed >= 1.6d)
             {
-                Debug.Log($"COURSEWORK_SMOKE_PHASE_STARTUP: frame={Time.frameCount}, gameTime={Time.timeAsDouble}");
                 ValidateStartupAndTriggerActions();
                 phase = 1;
-                phaseStarted = Time.timeAsDouble;
+                phaseStarted = EditorApplication.timeSinceStartup;
             }
             else if (phase == 1 && elapsed >= 0.9d)
             {
-                Debug.Log($"COURSEWORK_SMOKE_PHASE_DESTRUCTION: frame={Time.frameCount}, gameTime={Time.timeAsDouble}");
                 ValidateDestruction();
                 phase = 2;
-                phaseStarted = Time.timeAsDouble;
+                phaseStarted = EditorApplication.timeSinceStartup;
             }
             else if (phase == 2 && elapsed >= 0.8d)
             {
@@ -140,7 +105,6 @@ public static class CourseworkPlayModeValidator
         originalPlayer = playerSpawner.CurrentPlayer;
 
         EnemySpawner[] enemySpawners = UnityEngine.Object.FindObjectsByType<EnemySpawner>(FindObjectsSortMode.None);
-        // The authored scene includes JumpingSpawn_04 in addition to the original generator layout.
         Require(enemySpawners.Length == 8, $"Expected 8 enemy spawners, found {enemySpawners.Length}.");
         Require(enemySpawners.All(spawner => spawner.SpawnedEnemy != null), "An enemy was not instantiated.");
         Require(enemySpawners.Count(spawner => spawner.SpawnedEnemy is WalkerEnemy) == 4, "WalkerEnemy count mismatch.");

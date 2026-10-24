@@ -7,7 +7,7 @@ public static class CourseworkPreviewRenderer
 {
     private const string ScenePath = "Assets/Game/Scenes/2DGameCoursework.unity";
     private static string OutputFolder => Path.GetFullPath(
-        Path.Combine(Application.dataPath, "../Artifacts/Previews"));
+        Path.Combine(Application.dataPath, "../Build/Previews"));
 
     public static void RenderSeasonPreviews()
     {

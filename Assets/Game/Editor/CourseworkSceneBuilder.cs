@@ -27,7 +27,7 @@ public static class CourseworkSceneBuilder
     {
         if (!Application.isBatchMode && !EditorUtility.DisplayDialog(
             "Regenerate original example",
-            "This replaces the authored level, prefabs and animations with the original generator layout. Use Build Windows Player to export the existing game.",
+            "This replaces the authored level, prefabs and animations with the original generator layout. Export the existing game through Unity's File > Build Profiles instead.",
             "Replace assets", "Cancel"))
         {
             return;
