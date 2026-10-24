@@ -1,0 +1,9 @@
+Simple 2D Platformer Assets Pack
+
+Copyright ⓒ 2021 Goldmetal
+https://www.goldmetal.co.kr
+
+Original usage notice:
+골드메탈 출저만 표기하는 전제 하에 자유롭게 사용 가능합니다. (상용 가능)
+
+Credit Goldmetal when using these assets; commercial use is permitted.
